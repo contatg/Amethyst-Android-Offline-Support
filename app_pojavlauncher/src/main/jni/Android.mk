@@ -19,6 +19,7 @@ LOCAL_MODULE := pojavexec
 # -DGLES_TEST
 LOCAL_SRC_FILES := \
     bigcoreaffinity.c \
+    render_performance.c \
     egl_bridge.c \
     ctxbridges/loader_dlopen.c \
     ctxbridges/gl_bridge.c \

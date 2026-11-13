@@ -86,7 +86,7 @@ public class ProfileEditorFragment extends Fragment implements CropperUtils.Crop
         mRenderNames = renderersList.rendererIds;
         List<String> renderList = new ArrayList<>(renderersList.rendererDisplayNames.length + 1);
         renderList.addAll(Arrays.asList(renderersList.rendererDisplayNames));
-        renderList.add(view.getContext().getString(R.string.global_default));
+        renderList.add(view.getContext().getString(R.string.use_global_default));
         mDefaultRenderer.setAdapter(new ArrayAdapter<>(getContext(), R.layout.item_simple_list_1, renderList));
 
         // Set up behaviors
@@ -164,9 +164,7 @@ public class ProfileEditorFragment extends Fragment implements CropperUtils.Crop
         if(mTempProfile == null){
             mTempProfile = getProfile(profile);
         }
-        // TODO: Remove this jank when it's not relevant anymore
-        // Shitty hack to make OSMZink smoothly transition into kopper
-        if ("vulkan_zink".equals(mTempProfile.pojavRendererName)) mTempProfile.pojavRendererName = "opengles3_desktopgl_zink_kopper";
+        mTempProfile.pojavRendererName = Tools.migrateRendererId(mTempProfile.pojavRendererName);
         mProfileIcon.setImageDrawable(
                 ProfileIconCache.fetchIcon(getResources(), mProfileKey, mTempProfile.icon)
         );

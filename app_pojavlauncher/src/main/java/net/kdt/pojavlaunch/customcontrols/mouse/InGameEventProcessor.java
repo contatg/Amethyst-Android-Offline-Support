@@ -13,6 +13,7 @@ public class InGameEventProcessor implements TouchEventProcessor {
     private final Handler mGestureHandler = new Handler(Looper.getMainLooper());
     private final double mSensitivity;
     private boolean mEventTransitioned = true;
+    private boolean mCameraOnly;
     private final PointerTracker mTracker = new PointerTracker();
     private final LeftClickGesture mLeftClickGesture = new LeftClickGesture(mGestureHandler);
     private final RightClickGesture mRightClickGesture = new RightClickGesture(mGestureHandler);
@@ -21,20 +22,33 @@ public class InGameEventProcessor implements TouchEventProcessor {
         mSensitivity = sensitivity;
     }
 
+    public void setCameraOnly(boolean cameraOnly) {
+        if (mCameraOnly == cameraOnly) return;
+        cancelPendingActions();
+        mCameraOnly = cameraOnly;
+    }
+
     @Override
     public boolean processTouchEvent(MotionEvent motionEvent) {
         switch (motionEvent.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
                 mTracker.startTracking(motionEvent);
-                if(LauncherPreferences.PREF_DISABLE_GESTURES) break;
+                if (mCameraOnly || LauncherPreferences.PREF_DISABLE_GESTURES) break;
                 mEventTransitioned = false;
                 checkGestures();
                 break;
             case MotionEvent.ACTION_MOVE:
                 mTracker.trackEvent(motionEvent);
                 float[] motionVector = mTracker.getMotionVector();
-                float deltaX = (float) (motionVector[0] * mSensitivity);
-                float deltaY = (float) (motionVector[1] * mSensitivity);
+                double sensitivity = mSensitivity * (mCameraOnly ? LauncherPreferences.PREF_MOUSESPEED : 1);
+                float deltaX = (float) (motionVector[0] * sensitivity);
+                float deltaY = (float) (motionVector[1] * sensitivity);
+                if (mCameraOnly) {
+                    if (deltaX != 0 || deltaY != 0) {
+                        CallbackBridge.sendCursorPos(CallbackBridge.mouseX + deltaX, CallbackBridge.mouseY + deltaY);
+                    }
+                    break;
+                }
                 mLeftClickGesture.setMotion(deltaX, deltaY);
                 mRightClickGesture.setMotion(deltaX, deltaY);
                 CallbackBridge.mouseX += deltaX;
@@ -42,6 +56,12 @@ public class InGameEventProcessor implements TouchEventProcessor {
                 CallbackBridge.sendCursorPos(CallbackBridge.mouseX, CallbackBridge.mouseY);
                 if(LauncherPreferences.PREF_DISABLE_GESTURES) break;
                 checkGestures();
+                break;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (mCameraOnly) mTracker.updatePointerCount(motionEvent);
+                break;
+            case MotionEvent.ACTION_POINTER_UP:
+                if (mCameraOnly) mTracker.updatePointerAfterLift(motionEvent);
                 break;
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_CANCEL:
@@ -53,6 +73,7 @@ public class InGameEventProcessor implements TouchEventProcessor {
 
     @Override
     public void cancelPendingActions() {
+        mTracker.cancelTracking();
         cancelGestures(true);
     }
 

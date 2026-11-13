@@ -18,7 +18,6 @@ import net.kdt.pojavlaunch.Tools;
 import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
-import net.kdt.pojavlaunch.customcontrols.gamepad.GamepadJoystick;
 import net.kdt.pojavlaunch.customcontrols.handleview.EditControlSideDialog;
 
 import org.lwjgl.glfw.CallbackBridge;
@@ -30,13 +29,13 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
     public final static int DIRECTION_FORWARD_LOCK = 8;
     // Directions keycode
     private final int[] mDirectionForwardLock = new int[]{LwjglGlfwKeycode.GLFW_KEY_LEFT_CONTROL};
-    private final int[] mDirectionForward = new int[]{LwjglGlfwKeycode.GLFW_KEY_W};
-    private final int[] mDirectionRight = new int[]{LwjglGlfwKeycode.GLFW_KEY_D};
-    private final int[] mDirectionBackward = new int[]{LwjglGlfwKeycode.GLFW_KEY_S};
-    private final int[] mDirectionLeft = new int[]{LwjglGlfwKeycode.GLFW_KEY_A};
+    private static final int[] MOVEMENT_KEYS = {
+            LwjglGlfwKeycode.GLFW_KEY_W, LwjglGlfwKeycode.GLFW_KEY_D,
+            LwjglGlfwKeycode.GLFW_KEY_S, LwjglGlfwKeycode.GLFW_KEY_A
+    };
     private ControlJoystickData mControlData;
-    private int mLastDirectionInt = GamepadJoystick.DIRECTION_NONE;
-    private int mCurrentDirectionInt = GamepadJoystick.DIRECTION_NONE;
+    private int movementKeys;
+    private boolean forwardLocked;
     public ControlJoystick(ControlLayout parent, ControlJoystickData data) {
         super(parent.getContext());
         init(data, parent);
@@ -51,7 +50,7 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
     private void init(ControlJoystickData data, ControlLayout layout) {
         mControlData = data;
         setProperties(preProcessProperties(data, layout));
-        setDeadzone(35);
+        setDeadzone(24);
         setFixedCenter(data.absolute);
         setAutoReCenterButton(true);
 
@@ -60,20 +59,31 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
         setOnMoveListener(new OnMoveListener() {
             @Override
             public void onMove(int angle, int strength) {
-                mLastDirectionInt = mCurrentDirectionInt;
-                mCurrentDirectionInt = getDirectionInt(angle, strength);
-
-                if (mLastDirectionInt != mCurrentDirectionInt) {
-                    sendDirectionalKeycode(mLastDirectionInt, false);
-                    sendDirectionalKeycode(mCurrentDirectionInt, true);
-                }
+                updateMovement(getDirectionInt(angle, strength));
             }
 
             @Override
             public void onForwardLock(boolean isLocked) {
+                if (forwardLocked == isLocked) return;
+                forwardLocked = isLocked;
                 sendInput(mDirectionForwardLock, isLocked);
             }
         });
+    }
+
+    @Override
+    public void releaseTouchInputs() {
+        updateMovement(DIRECTION_NONE);
+        if (forwardLocked) {
+            forwardLocked = false;
+            sendInput(mDirectionForwardLock, false);
+        }
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        if (!visible) releaseTouchInputs();
+        ControlInterface.super.setVisible(visible);
     }
 
     @Override
@@ -130,39 +140,29 @@ public class ControlJoystick extends JoystickView implements ControlInterface {
         return (int) (((angle + 22.5) / 45) % 8);
     }
 
-    private void sendDirectionalKeycode(int direction, boolean isDown) {
+    private void updateMovement(int direction) {
+        int nextKeys = movementMask(direction);
+        int changedKeys = movementKeys ^ nextKeys;
+        for (int i = 0; i < MOVEMENT_KEYS.length; i++) {
+            int bit = 1 << i;
+            if ((changedKeys & bit) != 0) {
+                CallbackBridge.sendKeyPress(MOVEMENT_KEYS[i], CallbackBridge.getCurrentMods(), (nextKeys & bit) != 0);
+            }
+        }
+        movementKeys = nextKeys;
+    }
+
+    private static int movementMask(int direction) {
         switch (direction) {
-            case DIRECTION_NORTH:
-                sendInput(mDirectionForward, isDown);
-                break;
-            case DIRECTION_NORTH_EAST:
-                sendInput(mDirectionForward, isDown);
-                sendInput(mDirectionRight, isDown);
-                break;
-            case DIRECTION_EAST:
-                sendInput(mDirectionRight, isDown);
-                break;
-            case DIRECTION_SOUTH_EAST:
-                sendInput(mDirectionRight, isDown);
-                sendInput(mDirectionBackward, isDown);
-                break;
-            case DIRECTION_SOUTH:
-                sendInput(mDirectionBackward, isDown);
-                break;
-            case DIRECTION_SOUTH_WEST:
-                sendInput(mDirectionBackward, isDown);
-                sendInput(mDirectionLeft, isDown);
-                break;
-            case DIRECTION_WEST:
-                sendInput(mDirectionLeft, isDown);
-                break;
-            case DIRECTION_NORTH_WEST:
-                sendInput(mDirectionForward, isDown);
-                sendInput(mDirectionLeft, isDown);
-                break;
-            case DIRECTION_FORWARD_LOCK:
-                sendInput(mDirectionForwardLock, isDown);
-                break;
+            case DIRECTION_NORTH: return 1;
+            case DIRECTION_NORTH_EAST: return 1 | 2;
+            case DIRECTION_EAST: return 2;
+            case DIRECTION_SOUTH_EAST: return 2 | 4;
+            case DIRECTION_SOUTH: return 4;
+            case DIRECTION_SOUTH_WEST: return 4 | 8;
+            case DIRECTION_WEST: return 8;
+            case DIRECTION_NORTH_WEST: return 8 | 1;
+            default: return 0;
         }
     }
 

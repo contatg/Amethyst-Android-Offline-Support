@@ -25,6 +25,7 @@
 #include <environ/environ.h>
 #include <android/dlext.h>
 #include "utils.h"
+#include "render_performance.h"
 #include "ctxbridges/bridge_tbl.h"
 #include "ctxbridges/osm_bridge.h"
 
@@ -61,6 +62,7 @@ struct PotatoBridge potatoBridge;
 
 EXTERNAL_API void pojavTerminate() {
     printf("EGLBridge: Terminating\n");
+    render_performance_close();
 
     switch (pojav_environ->config_renderer) {
         case RENDERER_GL4ES: {
@@ -165,7 +167,8 @@ int pojavInitOpenGL() {
     const char *renderer = getenv("AMETHYST_RENDERER");
     if (strncmp("opengles", renderer, 8) == 0) {
         pojav_environ->config_renderer = RENDERER_GL4ES;
-        if (!strcmp(renderer, "opengles3_desktopgl_zink_kopper")) {
+        if (!strcmp(renderer, "opengles3_desktopgl_zink_system") ||
+            !strcmp(renderer, "opengles3_desktopgl_zink_turnip")) {
             load_vulkan();
             setenv("GALLIUM_DRIVER", "zink", 1);
             setenv("MESA_ANDROID_NO_KMS_SWRAST", "1", 1);

@@ -24,9 +24,9 @@ public class PojavRendererInit {
         if(!isValidString(rendererName)) {
             System.out.println("PojavRendererInit: Failed to find Pojav renderer name! " +
                                 "Renderer-specific initialization may not work properly");
+            return;
         }
-        // NOTE: hardcoded gl4es libname
-        if(rendererName.endsWith("libng_gl4es.so")) {
+        if(rendererName.endsWith("libng_gl4es.so") || rendererName.endsWith("libgl4es_114.so")) {
             nativeInitGl4esInternals(functionProvider);
         }
     }

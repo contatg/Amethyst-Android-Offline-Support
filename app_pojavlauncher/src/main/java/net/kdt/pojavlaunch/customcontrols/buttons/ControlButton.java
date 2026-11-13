@@ -39,6 +39,7 @@ public class ControlButton extends TextView implements ControlInterface {
 
     protected boolean mIsToggled = false;
     protected boolean mIsPointerOutOfBounds = false;
+    private int activePointer = -1;
 
     public ControlButton(ControlLayout layout, ControlData properties) {
         super(layout.getContext());
@@ -147,16 +148,24 @@ public class ControlButton extends TextView implements ControlInterface {
                 mIsPointerOutOfBounds = false;
                 break;
 
-            case MotionEvent.ACTION_DOWN: // 0
-            case MotionEvent.ACTION_POINTER_DOWN: // 5
+            case MotionEvent.ACTION_DOWN:
+                activePointer = event.getPointerId(event.getActionIndex());
                 if(!getProperties().isToggle){
                     sendKeyPresses(true);
                 }
                 break;
+            case MotionEvent.ACTION_POINTER_DOWN:
+                break;
 
-            case MotionEvent.ACTION_UP: // 1
-            case MotionEvent.ACTION_CANCEL: // 3
-            case MotionEvent.ACTION_POINTER_UP: // 6
+            case MotionEvent.ACTION_CANCEL:
+                if (mIsPointerOutOfBounds) getControlLayoutParent().onTouch(this, event);
+                mIsPointerOutOfBounds = false;
+                releaseTouchInputs();
+                break;
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+                if (activePointer != event.getPointerId(event.getActionIndex())) break;
+                activePointer = -1;
                 if(getProperties().passThruEnabled){
                     View gameSurface = getControlLayoutParent().getGameSurface();
                     if(gameSurface != null) gameSurface.dispatchTouchEvent(event);
@@ -193,14 +202,30 @@ public class ControlButton extends TextView implements ControlInterface {
     public void sendKeyPresses(boolean isDown){
         setActivated(isDown);
         for(int keycode : mProperties.keycodes){
+            if (keycode == GLFW_KEY_UNKNOWN) continue;
             if(keycode >= GLFW_KEY_UNKNOWN){
                 sendKeyPress(keycode, EfficientAndroidLWJGLKeycode.getLwjglChar(keycode), CallbackBridge.getCurrentMods(), isDown);
                 CallbackBridge.setModifiers(keycode, isDown);
             }else{
-                Log.i("punjabilauncher", "sendSpecialKey("+keycode+","+isDown+")");
                 sendSpecialKey(keycode, isDown);
             }
         }
+    }
+
+    @Override
+    public void releaseTouchInputs() {
+        activePointer = -1;
+        if (mIsToggled) {
+            mIsToggled = false;
+            invalidate();
+        }
+        if (isActivated()) sendKeyPresses(false);
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        if (!visible) releaseTouchInputs();
+        ControlInterface.super.setVisible(visible);
     }
 
     private void sendSpecialKey(int keycode, boolean isDown){
@@ -238,7 +263,7 @@ public class ControlButton extends TextView implements ControlInterface {
                 break;
 
             case ControlData.SPECIALBTN_MENU:
-                mControlLayout.notifyAppMenu();
+                if (isDown) mControlLayout.notifyAppMenu();
                 break;
 
             case ControlData.SPECIALBTN_MOUSEBCK:

@@ -9,6 +9,7 @@
 #include <environ/environ.h>
 #include "gl_bridge.h"
 #include "egl_loader.h"
+#include "../render_performance.h"
 
 #define TAG __FILE_NAME__
 #include <unistd.h>
@@ -58,10 +59,11 @@ static void gl4esi_get_display_dimensions(int* width, int* height) {
 gl_render_window_t* gl_init_context(gl_render_window_t *share) {
     gl_render_window_t* bundle = malloc(sizeof(gl_render_window_t));
     memset(bundle, 0, sizeof(gl_render_window_t));
+    bundle->swapInterval = -1;
     EGLint egl_attributes[] = { EGL_BLUE_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_RED_SIZE, 8, EGL_ALPHA_SIZE, 8, EGL_DEPTH_SIZE, 24, EGL_SURFACE_TYPE, EGL_WINDOW_BIT|EGL_PBUFFER_BIT, EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT, EGL_NONE };
     EGLint num_configs = 0;
 
-    if (eglChooseConfig_p(g_EglDisplay, egl_attributes, NULL, 0, &num_configs) != EGL_TRUE) {
+    if (eglChooseConfig_p(g_EglDisplay, egl_attributes, &bundle->config, 1, &num_configs) != EGL_TRUE) {
         LOGE("eglChooseConfig_p() failed: %04x", eglGetError_p());
         free(bundle);
         return NULL;
@@ -72,8 +74,6 @@ gl_render_window_t* gl_init_context(gl_render_window_t *share) {
         return NULL;
     }
 
-    // Get the first matching config
-    eglChooseConfig_p(g_EglDisplay, egl_attributes, &bundle->config, 1, &num_configs);
     eglGetConfigAttrib_p(g_EglDisplay, bundle->config, EGL_NATIVE_VISUAL_ID, &bundle->format);
 
     {
@@ -115,7 +115,7 @@ void gl_swap_surface(gl_render_window_t* bundle) {
      * to release the surface. This seems driver dependent as AVD and Waydroid do not need 0.75s
      * to set the bloody height and width to their proper values. They just do it, instantly.
      */
-    usleep(750000); // An overkill amount of time to wait for a surface to finish dying
+    if (bundle->nativeSurface != NULL) usleep(750000);
     int32_t nativeWindowWidth = ANativeWindow_getWidth(pojav_environ->pojavWindow);
     int32_t nativeWindowHeight = ANativeWindow_getHeight(pojav_environ->pojavWindow);
     if ((nativeWindowWidth > 0) || (nativeWindowHeight > 0)) {
@@ -166,6 +166,7 @@ void gl_make_current(gl_render_window_t* bundle) {
     }
     if(eglMakeCurrent_p(g_EglDisplay, bundle->surface, bundle->surface, bundle->context)) {
         currentBundle = bundle;
+        if (bundle->swapInterval >= 0) eglSwapInterval_p(g_EglDisplay, bundle->swapInterval);
     }else {
         if(hasSetMainWindow) {
             pojav_environ->mainWindowBundle->newNativeSurface = NULL;
@@ -178,10 +179,13 @@ void gl_make_current(gl_render_window_t* bundle) {
 }
 
 void gl_swap_buffers() {
+    if (currentBundle == NULL) return;
+    const bool isMainWindow = (basic_render_window_t *) currentBundle == pojav_environ->mainWindowBundle;
+    if (isMainWindow) render_performance_before_present();
     if(currentBundle->state == STATE_RENDERER_NEW_WINDOW) {
         eglMakeCurrent_p(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT); //detach everything to destroy the old EGLSurface
         gl_swap_surface(currentBundle);
-        eglMakeCurrent_p(g_EglDisplay, currentBundle->surface, currentBundle->surface, currentBundle->context);
+        gl_make_current(currentBundle);
         currentBundle->state = STATE_RENDERER_ALIVE;
     }
     if(currentBundle->surface != NULL)
@@ -189,10 +193,10 @@ void gl_swap_buffers() {
             eglMakeCurrent_p(g_EglDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
             currentBundle->newNativeSurface = NULL;
             gl_swap_surface(currentBundle);
-            eglMakeCurrent_p(g_EglDisplay, currentBundle->surface, currentBundle->surface, currentBundle->context);
+            gl_make_current(currentBundle);
             LOGI("The window has died, awaiting window change");
     }
-
+    if (isMainWindow) render_performance_after_present();
 }
 
 void gl_setup_window() {
@@ -206,6 +210,7 @@ void gl_setup_window() {
 void gl_swap_interval(int swapInterval) {
     if(pojav_environ->force_vsync) swapInterval = 1;
 
+    if (currentBundle != NULL) currentBundle->swapInterval = swapInterval;
     eglSwapInterval_p(g_EglDisplay, swapInterval);
 }
 

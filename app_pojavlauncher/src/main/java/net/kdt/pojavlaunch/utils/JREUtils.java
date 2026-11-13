@@ -175,7 +175,7 @@ public class JREUtils {
         LD_LIBRARY_PATH = ldLibraryPath.toString();
     }
 
-    public static void setJavaEnvironment(Activity activity, String jreHome) throws Throwable {
+    private static void setJavaEnvironment(Activity activity, String jreHome, boolean isMinecraft1710) throws Throwable {
         Map<String, String> envMap = new ArrayMap<>();
         envMap.put("POJAV_NATIVEDIR", NATIVE_LIB_DIR);
         envMap.put("JAVA_HOME", jreHome);
@@ -205,7 +205,8 @@ public class JREUtils {
 
         envMap.put("FORCE_VSYNC", String.valueOf(LauncherPreferences.PREF_FORCE_VSYNC));
 
-        envMap.put("MESA_GLSL_CACHE_DIR", Tools.DIR_CACHE.getAbsolutePath());
+        envMap.put("MESA_SHADER_CACHE_DIR", Tools.DIR_CACHE.getAbsolutePath());
+        envMap.put("MESA_SHADER_CACHE_MAX_SIZE", "128M");
         envMap.put("force_glsl_extensions_warn", "true");
         envMap.put("allow_higher_compat_version", "true");
         envMap.put("allow_glsl_extension_directive_midshader", "true");
@@ -228,10 +229,10 @@ public class JREUtils {
                 envMap.put("MG_DIR_PATH", Tools.DIR_DATA + "/MobileGlues");
                 envMap.put("POJAVEXEC_EGL","libmobileglues.so");
             }
-            if(LOCAL_RENDERER.equals("opengles2")){
+            if(LOCAL_RENDERER.equals("opengles2") || Tools.RENDERER_HOLY_GL4ES.equals(LOCAL_RENDERER)){
                 envMap.put("LIBGL_ES", "2"); // Krypton Wrapper crashes with 1
             }
-            if (LOCAL_RENDERER.equals("opengles3_desktopgl_zink_kopper")){
+            if (Tools.isKopperRenderer(LOCAL_RENDERER)){
                 envMap.put("POJAVEXEC_EGL","libEGL_mesa.so"); // Use Mesa EGL
                 if (Tools.shouldUseUBWC()) envMap.put("FD_DEV_FEATURES", "enable_tp_ubwc_flag_hint=1"); // Turnip fix for OneUI rendering issues
             }
@@ -242,6 +243,10 @@ public class JREUtils {
             }
         }
         if(LauncherPreferences.PREF_BIG_CORE_AFFINITY) envMap.put("POJAV_BIG_CORE_AFFINITY", "1");
+        if (isMinecraft1710 && Tools.RENDERER_HOLY_GL4ES.equals(LOCAL_RENDERER)
+                && LauncherPreferences.PREF_LEGACY_RENDER_HINTS && Build.VERSION.SDK_INT >= 33) {
+            envMap.put("POJAV_LEGACY_RENDER_HINTS", "1");
+        }
         envMap.put("AWTSTUB_WIDTH", Integer.toString(CallbackBridge.windowWidth > 0 ? CallbackBridge.windowWidth : CallbackBridge.physicalWidth));
         envMap.put("AWTSTUB_HEIGHT", Integer.toString(CallbackBridge.windowHeight > 0 ? CallbackBridge.windowHeight : CallbackBridge.physicalHeight));
 
@@ -262,7 +267,9 @@ public class JREUtils {
             }
         }
 
-        if(info.isAdreno() && !PREF_ZINK_PREFER_SYSTEM_DRIVER) {
+        boolean explicitTurnip = Tools.RENDERER_ZINK_TURNIP.equals(LOCAL_RENDERER);
+        if ((explicitTurnip || (!Tools.isKopperRenderer(LOCAL_RENDERER) && !PREF_ZINK_PREFER_SYSTEM_DRIVER))
+                && Tools.canLoadTurnip()) {
             envMap.put("POJAV_LOAD_TURNIP", "1");
         }
 
@@ -300,11 +307,16 @@ public class JREUtils {
         }
     }
     public static void launchJavaVM(final AppCompatActivity activity, final Runtime runtime, File gameDirectory, final List<String> JVMArgs, final String userArgsString) throws Throwable {
+        launchJavaVM(activity, runtime, gameDirectory, JVMArgs, userArgsString, false);
+    }
+
+    public static void launchJavaVM(final AppCompatActivity activity, final Runtime runtime, File gameDirectory,
+                                    final List<String> JVMArgs, final String userArgsString, boolean isMinecraft1710) throws Throwable {
         String runtimeHome = MultiRTUtils.getRuntimeHome(runtime.name).getAbsolutePath();
 
         JREUtils.relocateLibPath(runtime, runtimeHome);
 
-        setJavaEnvironment(activity, runtimeHome);
+        setJavaEnvironment(activity, runtimeHome, isMinecraft1710);
 
         final String graphicsLib = loadGraphicsLibrary();
         List<String> userArgs = getJavaArgs(activity, runtimeHome, userArgsString);
@@ -325,8 +337,11 @@ public class JREUtils {
         purgeArg(userArgs, "-XX:ActiveProcessorCount");
 
         //Add automatically generated args
-        userArgs.add("-Xms" + LauncherPreferences.PREF_RAM_ALLOCATION + "M");
-        userArgs.add("-Xmx" + LauncherPreferences.PREF_RAM_ALLOCATION + "M");
+        int maximumHeap = LauncherPreferences.PREF_RAM_ALLOCATION;
+        int initialHeap = isMinecraft1710 && GLInfoUtils.getGlInfo().isAdreno610()
+                ? Math.min(maximumHeap, 512) : maximumHeap;
+        userArgs.add("-Xms" + initialHeap + "M");
+        userArgs.add("-Xmx" + maximumHeap + "M");
         if(LOCAL_RENDERER != null) userArgs.add("-Dorg.lwjgl.opengl.libname=" + graphicsLib);
 
         // Force LWJGL to use the Freetype library intended for it, instead of using the one
@@ -497,9 +512,11 @@ public class JREUtils {
             case "opengles2_5":
             case "opengles3":
                 renderLibrary = "libng_gl4es.so"; break;
+            case Tools.RENDERER_HOLY_GL4ES: renderLibrary = "libgl4es_114.so"; break;
             case "vulkan_zink": renderLibrary = "libOSMesa.so"; break;
             case "opengles_mobileglues": renderLibrary = "libmobileglues.so"; break;
-            case "opengles3_desktopgl_zink_kopper": renderLibrary = "libglxshim.so"; break;
+            case Tools.RENDERER_KOPPER_ZINK:
+            case Tools.RENDERER_ZINK_TURNIP: renderLibrary = "libglxshim.so"; break;
             case "opengles3_ltw" : renderLibrary = "libltw.so"; break;
             default:
                 Log.w("RENDER_LIBRARY", "No renderer selected, defaulting to opengles2");

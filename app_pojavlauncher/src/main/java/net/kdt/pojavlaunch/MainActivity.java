@@ -58,7 +58,6 @@ import net.kdt.pojavlaunch.customcontrols.ControlData;
 import net.kdt.pojavlaunch.customcontrols.ControlDrawerData;
 import net.kdt.pojavlaunch.customcontrols.ControlJoystickData;
 import net.kdt.pojavlaunch.customcontrols.ControlLayout;
-import net.kdt.pojavlaunch.customcontrols.CustomControls;
 import net.kdt.pojavlaunch.customcontrols.EditorExitable;
 import net.kdt.pojavlaunch.customcontrols.keyboard.LwjglCharSender;
 import net.kdt.pojavlaunch.customcontrols.keyboard.TouchCharInput;
@@ -70,6 +69,7 @@ import net.kdt.pojavlaunch.prefs.LauncherPreferences;
 import net.kdt.pojavlaunch.prefs.QuickSettingSideDialog;
 import net.kdt.pojavlaunch.services.GameService;
 import net.kdt.pojavlaunch.utils.JREUtils;
+import net.kdt.pojavlaunch.utils.GLInfoUtils;
 import net.kdt.pojavlaunch.utils.MCOptionUtils;
 import net.kdt.pojavlaunch.utils.TouchControllerInputView;
 import net.kdt.pojavlaunch.utils.TouchControllerUtils;
@@ -230,12 +230,17 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
             touchControllerInputView.setInputAreaRectListener(this);
 
-            if(minecraftProfile.pojavRendererName != null) {
-                Log.i("RdrDebug","__P_renderer="+minecraftProfile.pojavRendererName);
-                Tools.LOCAL_RENDERER = minecraftProfile.pojavRendererName;
-                // TODO: Remove this jank when it's not relevant anymore
-                // Shitty hack to make OSMZink smoothly transition into kopper
-                if (minecraftProfile.pojavRendererName.equals("vulkan_zink")) Tools.LOCAL_RENDERER = "opengles3_desktopgl_zink_kopper";
+            if (Tools.LOCAL_RENDERER == null) {
+                String renderer = Tools.migrateRendererId(minecraftProfile.pojavRendererName);
+                if (renderer == null) renderer = LauncherPreferences.PREF_GLOBAL_RENDERER;
+                if (!LauncherPreferences.RENDERER_AUTO.equals(renderer)) {
+                    if (Tools.checkRendererCompatible(this, renderer)) {
+                        Tools.LOCAL_RENDERER = renderer;
+                    } else {
+                        Log.w("runCraft", "Unavailable renderer " + renderer + ", using automatic selection");
+                        Toast.makeText(this, R.string.autorendererselectfailed, Toast.LENGTH_LONG).show();
+                    }
+                }
             }
 
             setTitle("Minecraft " + minecraftProfile.lastVersionId);
@@ -293,14 +298,29 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     }
 
     private void loadControls() {
+        loadConfiguredControlLayout();
+        mDrawerPullButton.setVisibility(mControlLayout.hasMenuButton() ? View.GONE : View.VISIBLE);
+        mControlLayout.setControlVisible(true);
+    }
+
+    private void loadConfiguredControlLayout() {
         try {
-            // Load keys
-            mControlLayout.loadLayout(
-                    minecraftProfile.controlFile == null
-                            ? LauncherPreferences.PREF_DEFAULTCTRL_PATH
-                            : Tools.CTRLMAP_PATH + "/" + minecraftProfile.controlFile);
+            if (LauncherPreferences.PREF_BEDROCK_TOUCH) {
+                String assetName = "bedrock-touch.json";
+                Tools.copyAssetFile(this, assetName, Tools.CTRLMAP_PATH, false);
+                float maximumScale = Math.min(Tools.pxToDp(currentDisplayMetrics.heightPixels) / 270f,
+                        Tools.pxToDp(currentDisplayMetrics.widthPixels) / 480f);
+                mControlLayout.loadLayout(Tools.CTRLMAP_PATH + "/" + assetName, maximumScale);
+                minecraftGLView.setBedrockTouch(true);
+                return;
+            }
+            minecraftGLView.setBedrockTouch(false);
+            mControlLayout.loadLayout(minecraftProfile.controlFile == null
+                    ? LauncherPreferences.PREF_DEFAULTCTRL_PATH
+                    : Tools.CTRLMAP_PATH + "/" + minecraftProfile.controlFile);
         } catch(IOException e) {
             try {
+                minecraftGLView.setBedrockTouch(false);
                 Log.w("MainActivity", "Unable to load the control file, loading the default now", e);
                 mControlLayout.loadLayout(Tools.CTRLDEF_FILE);
             } catch (IOException ioException) {
@@ -309,8 +329,6 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         } catch (Throwable th) {
             Tools.showError(this, th);
         }
-        mDrawerPullButton.setVisibility(mControlLayout.hasMenuButton() ? View.GONE : View.VISIBLE);
-        mControlLayout.toggleControlVisible();
     }
 
     @Override
@@ -326,6 +344,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     /** Boilerplate binding */
     private void bindValues(){
         mControlLayout = findViewById(R.id.main_control_layout);
+        mControlLayout.setMotionEventSplittingEnabled(true);
         minecraftGLView = findViewById(R.id.main_game_render_view);
         touchpad = findViewById(R.id.main_touchpad);
         drawerLayout = findViewById(R.id.main_drawer_options);
@@ -350,6 +369,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
     @Override
     protected void onPause() {
         mGyroControl.disable();
+        mControlLayout.releaseTouchInputs();
         if (CallbackBridge.isGrabbing()){
             sendKeyPress(LwjglGlfwKeycode.GLFW_KEY_ESCAPE);
         }
@@ -417,11 +437,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
             // and MissingStorageActivity will be started.
             if(!Tools.checkStorageRoot(this)) return;
             LauncherPreferences.loadPreferences(getApplicationContext());
-            try {
-                mControlLayout.loadLayout(LauncherPreferences.PREF_DEFAULTCTRL_PATH);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            loadControls();
         }
     }
 
@@ -465,6 +481,11 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
                "1.19".equals(assetVersion) ||
                 // Angelica gives us GL3.3core on 1.7.10, it's a unique case.
                 hasMods("angelica")) Tools.LOCAL_RENDERER = "opengles_mobileglues";
+            else if (("1.7.10".equals(versionId) || "1.7.10".equals(version.inheritsFrom))
+                    && GLInfoUtils.getGlInfo().isAdreno610()
+                    && Tools.checkRendererCompatible(this, Tools.RENDERER_HOLY_GL4ES)) {
+                Tools.LOCAL_RENDERER = Tools.RENDERER_HOLY_GL4ES;
+            }
         }
         if(!Tools.checkRendererCompatible(this, Tools.LOCAL_RENDERER)) {
             Tools.RenderersList renderersList = Tools.getCompatibleRenderers(this);
@@ -487,7 +508,7 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
         MinecraftAccount minecraftAccount = PojavProfile.getCurrentProfileContent(this, null);
         if (hasMods("sodium"))
             Logger.appendToLog("WARNING: Sodium is being used, Amethyst-Android does NOT support this mod, you are on your own");
-        Logger.appendToLog("--------- Starting game with Launcher Debug!");
+        Logger.appendToLog("--------- Starting game with renderer: " + Tools.LOCAL_RENDERER);
         Tools.printLauncherInfo(versionId, Tools.isValidString(minecraftProfile.javaArgs) ? minecraftProfile.javaArgs : LauncherPreferences.PREF_CUSTOM_JAVA_ARGS, Tools.getTotalDeviceMemory(this));
         if(Tools.LOCAL_RENDERER.equals("opengles_mobileglues")) {
             LauncherPreferences.writeMGRendererSettings();
@@ -653,18 +674,8 @@ public class MainActivity extends BaseActivity implements ControlButtonMenuListe
 
     @Override
     public void exitEditor() {
-        try {
-            mControlLayout.loadLayout((CustomControls)null);
-            mControlLayout.setModifiable(false);
-            System.gc();
-            mControlLayout.loadLayout(
-                    minecraftProfile.controlFile == null
-                            ? LauncherPreferences.PREF_DEFAULTCTRL_PATH
-                            : Tools.CTRLMAP_PATH + "/" + minecraftProfile.controlFile);
-            mDrawerPullButton.setVisibility(mControlLayout.hasMenuButton() ? View.GONE : View.VISIBLE);
-        } catch (IOException e) {
-            Tools.showError(this,e);
-        }
+        mControlLayout.setModifiable(false);
+        loadControls();
 
         navDrawer.setAdapter(gameActionArrayAdapter);
         navDrawer.setOnItemClickListener(gameActionClickListener);

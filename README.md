@@ -18,8 +18,6 @@ For more details, check out our [wiki](https://wiki.angelauramc.dev)!
 * [Introduction](#introduction)
 * [Getting Amethyst](#getting-amethyst)
 * [Building](#building)
-    * [Quick Build (Recommended)](#quick-build-recommended)
-    * [Detailed Build](#detailed-build)
 * [Current Status](#current-status)
 * [Known Issues](#known-issues)
 * [FAQ](#faq)
@@ -45,37 +43,31 @@ You can get Amethyst via two methods:
 
 ## Building
 
-### Quick Build (Recommended)
+Esta branch do fork é voltada para o Minecraft Java no Android ARM64. Inclui
+conta local, controles estilo Bedrock, Holy GL4ES, Zink com Vulkan do sistema
+ou Turnip e ajustes opcionais para o Adreno 610. Veja [CLAUDE.md](CLAUDE.md)
+para os pontos de entrada no código e o plano de testes.
 
-The easiest way to build Amethyst is to use the pre-built JREs provided by our CI.
+Use JDK 21, Python 3.11+, Android SDK Platform 34 extensão 12, Build Tools 34.0.0
+e NDK 27.3.13750724. Configure `ANDROID_HOME` ou `sdk.dir` no `local.properties`.
+No Linux ou macOS, rode na raiz do repositório.
 
-1. Clone the repository: `git clone --recursive https://github.com/AngelAuraMC/Amethyst-Android.git`
-2. Build the launcher: `./gradlew :app_pojavlauncher:assembleDebug` (Use `gradlew.bat` on Windows)
+```sh
+python3 scripts/fetch-performance-assets.py
+bash scripts/languagelist_updater.sh
+./gradlew :app_pojavlauncher:assembleOfflineRelease :app_pojavlauncher:lintOfflineRelease
+```
 
-The built APK will be located in `app_pojavlauncher/build/outputs/apk/debug/`.
+O APK fica em `app_pojavlauncher/build/outputs/apk/offlineRelease/`.
+A variante `offlineRelease` é compilada sem depuração e usa o ID de pacote,
+a autoridade de armazenamento e a chave pública de teste do projeto original
+para atualizar a instalação Offline Turnip anterior. A chave de teste já
+consta no repositório de origem. Use uma identidade de assinatura própria
+para um pacote de distribuição independente.
 
-### Detailed Build
-
-If you need more control over the build process, follow these steps:
-
-1. **Java Runtime Environment (JRE):** Download the `jre8-pojav` artifact from our [CI auto builds](https://github.com/AngelAuraMC/openjdk-build-multiarch/actions).  This package contains pre-built JREs for all supported architectures.  If you need to build the JRE yourself, follow the instructions in the [android-openjdk-build-multiarch](https://github.com/AngelAuraMC/openjdk-build-multiarch) repository.
-
-2. **LWJGL:** The build instructions for the custom LWJGL are available over the [LWJGL repository](https://github.com/AngelAuraMC/lwjgl3).
-
-3. **Language List:** Because languages are auto-added by Crowdin, you need to run the language list generator before building. In the project directory, run:
-   * Linux/macOS:
-     ```bash
-     chmod +x scripts/languagelist_updater.sh
-     bash scripts/languagelist_updater.sh
-     ```
-   * Windows:
-     ```batch
-     scripts\languagelist_updater.bat
-     ```
-
-4. **Build GLFW stub:** `./gradlew :jre_lwjgl3glfw:build`
-
-5. **Build the launcher:** `./gradlew :app_pojavlauncher:assembleDebug` (Replace `gradlew` with `gradlew.bat` on Windows).
+O script baixa o Java 8 ARM64 do APK de referência e o Holy GL4ES do Pojav,
+com verificação SHA-256. O Turnip (`libvulkan_freedreno.so`) e os componentes
+do Zink são fornecidos pela própria árvore de origem.
 
 ## Current Status
 

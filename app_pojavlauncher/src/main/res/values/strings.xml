@@ -63,6 +63,14 @@
     <string name="mcl_setting_title_javaargs">JVM Launch arguments</string>
     <string name="mcl_setting_subtitle_javaargs">Be careful, this may make game crash if modified without knowledge.</string>
     <string name="mcl_setting_title_renderer_settings">Extra Renderer Settings</string>
+    <string name="global_renderer_auto">Automatic</string>
+    <string name="preference_bedrock_touch_title">Bedrock-style touch controls</string>
+    <string name="preference_bedrock_touch_summary">Joystick, drag to aim, and action buttons. Turn off to use your custom layout.</string>
+    <string name="preference_adreno610_title">Apply Adreno 610 video settings</string>
+    <string name="preference_adreno610_summary">Aim for 640 px, enable SurfaceView, and turn off forced V-Sync. Restart the game to apply.</string>
+    <string name="renderer_holy_gl4es">Holy GL4ES (OpenGL ES)</string>
+    <string name="renderer_zink">Zink (System Vulkan)</string>
+    <string name="renderer_zink_turnip">Zink + Turnip (Freedreno Vulkan)</string>
     <string name="mcl_setting_title_renderer_subtitle">Renderer specific settings</string>
     <string name="mcl_setting_category_renderer">Renderer</string>
     <string name="mcl_setting_renderer_gles2_4">Holy GL4ES - (1.21.4&lt; only, fast)</string>
@@ -297,8 +305,10 @@
     <string name="preference_deadzone_scale_description">Increase it if the joystick drifts.</string>
 
 
-    <string name="preference_force_big_core_title">Force the renderer to run on the big core</string>
-    <string name="preference_force_big_core_desc">Forces the Minecraft render thread to run on the core with the highest maximum frequency.</string>
+    <string name="preference_force_big_core_title">Prefer performance cores for rendering</string>
+    <string name="preference_force_big_core_desc">Limits only the rendering thread to the fastest available cores when Android allows it.</string>
+    <string name="preference_legacy_render_hints_title">CPU scheduling for Minecraft 1.7.10</string>
+    <string name="preference_legacy_render_hints_description">Lets Android tune CPU scheduling for Holy GL4ES on supported devices.</string>
     <string name="version_select_hint">Select a version</string>
     <string name="forge_dl_progress">Downloading installer for %s</string>
     <string name="forge_dl_searching">Searching for Forge version number</string>

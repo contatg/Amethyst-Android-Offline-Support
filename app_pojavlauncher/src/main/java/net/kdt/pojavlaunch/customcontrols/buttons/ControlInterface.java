@@ -57,6 +57,8 @@ public interface ControlInterface extends View.OnLongClickListener, GrabListener
 
     void sendKeyPresses(boolean isDown);
 
+    default void releaseTouchInputs() {}
+
     /**
      * Load the values and hide non useful forms
      */

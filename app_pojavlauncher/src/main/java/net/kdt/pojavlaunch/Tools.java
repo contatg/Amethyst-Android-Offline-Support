@@ -124,6 +124,9 @@ public final class Tools {
     public static File DIR_CACHE;
     public static String MULTIRT_HOME;
     public static String LOCAL_RENDERER = null;
+    public static final String RENDERER_HOLY_GL4ES = "opengles2_holy_gl4es";
+    public static final String RENDERER_KOPPER_ZINK = "opengles3_desktopgl_zink_system";
+    public static final String RENDERER_ZINK_TURNIP = "opengles3_desktopgl_zink_turnip";
     public static int DEVICE_ARCHITECTURE;
     public static final String LAUNCHERPROFILES_RTPREFIX = "amethyst://";
 
@@ -524,7 +527,8 @@ public final class Tools {
         String args = LauncherPreferences.PREF_CUSTOM_JAVA_ARGS;
         if(Tools.isValidString(minecraftProfile.javaArgs)) args = minecraftProfile.javaArgs;
         FFmpegPlugin.discover(activity);
-        JREUtils.launchJavaVM(activity, runtime, gamedir, javaArgList, args);
+        boolean isMinecraft1710 = "1.7.10".equals(versionId) || "1.7.10".equals(versionInfo.inheritsFrom);
+        JREUtils.launchJavaVM(activity, runtime, gamedir, javaArgList, args, isMinecraft1710);
         // If we returned, this means that the JVM exit dialog has been shown and we don't need to be active anymore.
         // We never return otherwise. The process will be killed anyway, and thus we will become inactive
     }
@@ -1716,6 +1720,24 @@ public final class Tools {
         return false;
     }
 
+    public static boolean canLoadTurnip() {
+        return SDK_INT >= Build.VERSION_CODES.P
+                && getDeviceArchitecture() == Architecture.ARCH_ARM64
+                && new File(NATIVE_LIB_DIR, "libvulkan_freedreno.so").isFile()
+                && GLInfoUtils.getGlInfo().isAdreno();
+    }
+
+    public static String migrateRendererId(String rendererId) {
+        if (!"vulkan_zink".equals(rendererId)
+                && !"opengles3_desktopgl_zink_kopper".equals(rendererId)) return rendererId;
+        return !LauncherPreferences.PREF_ZINK_PREFER_SYSTEM_DRIVER && canLoadTurnip()
+                ? RENDERER_ZINK_TURNIP : RENDERER_KOPPER_ZINK;
+    }
+
+    public static boolean isKopperRenderer(String rendererId) {
+        return RENDERER_KOPPER_ZINK.equals(rendererId) || RENDERER_ZINK_TURNIP.equals(rendererId);
+    }
+
     public static <T> T getWeakReference(WeakReference<T> weakReference) {
         if(weakReference == null) return null;
         return weakReference.get();
@@ -1728,8 +1750,11 @@ public final class Tools {
         String[] defaultRenderers = resources.getStringArray(R.array.renderer_values);
         String[] defaultRendererNames = resources.getStringArray(R.array.renderer);
         boolean deviceHasVulkan = checkVulkanSupport(context.getPackageManager());
-        // Zink is now also optional because it sucks
-        boolean deviceHasOSMesaZinkBinary = new File(Tools.NATIVE_LIB_DIR, "libOSMesa.so").exists();
+        boolean hasKopper = new File(NATIVE_LIB_DIR, "libEGL_mesa.so").isFile()
+                && new File(NATIVE_LIB_DIR, "libzink_dri.so").isFile()
+                && new File(NATIVE_LIB_DIR, "libglxshim.so").isFile();
+        boolean hasHolyGl4es = new File(NATIVE_LIB_DIR, "libgl4es_114.so").isFile();
+        boolean hasTurnip = canLoadTurnip();
         boolean deviceHasOpenGLES3 = JREUtils.getDetectedVersion() >= 3;
         // LTW is an optional proprietary dependency
         boolean appHasLtw = new File(Tools.NATIVE_LIB_DIR, "libltw.so").exists();
@@ -1737,8 +1762,10 @@ public final class Tools {
         List<String> rendererNames = new ArrayList<>(defaultRendererNames.length);
         for(int i = 0; i < defaultRenderers.length; i++) {
             String rendererId = defaultRenderers[i];
+            if (RENDERER_HOLY_GL4ES.equals(rendererId) && !hasHolyGl4es) continue;
+            if (RENDERER_KOPPER_ZINK.equals(rendererId) && (!hasKopper || !deviceHasVulkan)) continue;
+            if (RENDERER_ZINK_TURNIP.equals(rendererId) && (!hasKopper || !hasTurnip)) continue;
             if(rendererId.contains("vulkan") && !deviceHasVulkan) continue;
-            if(rendererId.contains("vulkan_zink") && !deviceHasOSMesaZinkBinary) continue;
             if(rendererId.contains("ltw") && (!deviceHasOpenGLES3 || !appHasLtw)) continue;
             rendererIds.add(rendererId);
             rendererNames.add(defaultRendererNames[i]);
@@ -1757,7 +1784,6 @@ public final class Tools {
     /** Releases the cache of compatible renderers. */
     public static void releaseRenderersCache() {
         sCompatibleRenderers = null;
-        System.gc();
     }
 
     public static boolean deviceSupportsGyro(@NonNull Context context) {

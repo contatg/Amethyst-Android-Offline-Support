@@ -1,55 +1,62 @@
-//
-// Created by maks on 19.06.2023.
-//
+#define _GNU_SOURCE
 
-#define _GNU_SOURCE // we are GNU GPLv3
-
-#include <linux/limits.h>
-#include <unistd.h>
-#include <stdio.h>
+#include <errno.h>
 #include <fcntl.h>
-#include <stdlib.h>
 #include <sched.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-#define FREQ_MAX 256
-void bigcore_format_cpu_path(char* buffer, unsigned int cpu_core) {
-    snprintf(buffer, PATH_MAX, "/sys/devices/system/cpu/cpu%i/cpufreq/cpuinfo_max_freq", cpu_core);
+static unsigned long read_cpu_value(int cpu, const char *property) {
+    char path[96];
+    snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%d/%s", cpu, property);
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) return 0;
+
+    char value[32];
+    ssize_t count = read(fd, value, sizeof(value) - 1);
+    close(fd);
+    if (count <= 0) return 0;
+    value[count] = '\0';
+    return strtoul(value, NULL, 10);
 }
 
-void bigcore_set_affinity() {
-    char path_buffer[PATH_MAX];
-    char freq_buffer[FREQ_MAX];
-    char* discard;
-    unsigned long core_freq;
-    unsigned long max_freq = 0;
-    unsigned int corecnt = 0;
-    unsigned int big_core_id = 0;
-    while(1) {
-        bigcore_format_cpu_path(path_buffer, corecnt);
-        int corefreqfd = open(path_buffer, O_RDONLY);
-        if(corefreqfd != -1) {
-            ssize_t read_count = read(corefreqfd, freq_buffer, FREQ_MAX);
-            close(corefreqfd);
-            freq_buffer[read_count] = 0;
-            core_freq = strtoul(freq_buffer, &discard, 10);
-            if(core_freq >= max_freq) {
-                max_freq = core_freq;
-                big_core_id = corecnt;
-            }
-        }else{
-            break;
+static int select_fast_cores(const cpu_set_t *allowed, cpu_set_t *fast, const char *property) {
+    CPU_ZERO(fast);
+    unsigned long maximum = 0;
+    for (int cpu = 0; cpu < CPU_SETSIZE; cpu++) {
+        if (!CPU_ISSET(cpu, allowed)) continue;
+        unsigned long value = read_cpu_value(cpu, property);
+        if (value == 0 || value < maximum) continue;
+        if (value > maximum) {
+            CPU_ZERO(fast);
+            maximum = value;
         }
-        corecnt++;
+        CPU_SET(cpu, fast);
     }
-    printf("bigcore: big CPU number is %u, frequency %lu Hz\n", big_core_id, max_freq);
-    cpu_set_t bigcore_affinity_set;
-    CPU_ZERO(&bigcore_affinity_set);
-    CPU_SET_S(big_core_id, CPU_SETSIZE, &bigcore_affinity_set);
-    int result = sched_setaffinity(0, CPU_SETSIZE, &bigcore_affinity_set);
-    if(result != 0) {
-        printf("bigcore: setting affinity failed: %s\n", strerror(result));
-    }else{
-        printf("bigcore: forced current thread onto big core\n");
+    return CPU_COUNT(fast);
+}
+
+void bigcore_set_affinity(void) {
+    cpu_set_t allowed;
+    if (sched_getaffinity(0, sizeof(allowed), &allowed) != 0) return;
+    int allowed_count = CPU_COUNT(&allowed);
+
+    cpu_set_t fast;
+    int count = select_fast_cores(&allowed, &fast, "cpu_capacity");
+    if (count == 0 || count == allowed_count) {
+        count = select_fast_cores(&allowed, &fast, "cpufreq/cpuinfo_max_freq");
+    }
+    if (count == 0 || count == allowed_count) {
+        printf("Render performance: no faster CPU group was detected\n");
+        return;
+    }
+
+    if (sched_setaffinity(0, sizeof(fast), &fast) == 0) {
+        printf("Render performance: render thread may run on %d of %d available CPUs\n",
+               count, allowed_count);
+    } else {
+        printf("Render performance: keeping default CPU affinity: %s\n", strerror(errno));
     }
 }

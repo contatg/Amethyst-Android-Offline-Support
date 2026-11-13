@@ -2,55 +2,6 @@ plugins {
     id 'com.android.application' version '8.7.2'
 }
 
-static def getDate() { return new Date().format('yyyyMMdd') }
-
-def getVersionName = {
-    // Get the last version tag, as well as the short head of the last commit
-    ByteArrayOutputStream TAG = new ByteArrayOutputStream()
-    String semVer = "1.1.6"
-    // Used by the fallback for github actions
-    ByteArrayOutputStream TAG_PART_COMMIT = new ByteArrayOutputStream()
-    String TAG_STRING
-
-    exec {
-        try {
-            commandLine 'git', 'describe', '--tags'
-            ignoreExitValue true
-            standardOutput = TAG
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    if (TAG.toString() == "") {
-        exec {
-            // Fallback for action builds
-            try {
-                commandLine 'git', 'describe', '--always', '--tags'
-                ignoreExitValue true
-                standardOutput = TAG_PART_COMMIT
-            } catch (Exception e) {
-            }
-        }
-    }
-
-
-    if(TAG.toString() != ""){
-        TAG_STRING = TAG.toString()
-    }else {
-        if(TAG_PART_COMMIT.toString().trim() == ""){
-             //Fallback no repo
-            return ("LOCAL-" + "${getDate()}")
-        }else {
-            // Used by github actions
-            TAG_STRING =  'amethyst-legacy-' + "${getDate()}" + "-" + TAG_PART_COMMIT.toString().trim()
-        }
-
-    }
-
-    return TAG_STRING.trim().replace("-g", "-") + "-" + semVer
-}
-
 def getCFApiKey = {
     String key = System.getenv("CURSEFORGE_API_KEY");
     if(key != null) return key;
@@ -73,6 +24,7 @@ android {
     namespace 'net.kdt.pojavlaunch'
 
     compileSdk = 34
+    compileSdkExtension = 12
 
     lintOptions {
         abortOnError false
@@ -103,8 +55,8 @@ android {
         applicationId "org.angelauramc.amethyst"
         minSdkVersion 21
         targetSdkVersion 34
-        versionCode 10000000
-        versionName getVersionName()
+        versionCode 10000003
+        versionName "1.1.6-offline-performance.3"
         multiDexEnabled true //important
         resValue 'string', 'curseforge_api_key', getCFApiKey()
         externalNativeBuild {
@@ -112,6 +64,9 @@ android {
                 // Fix for Windows command line length limit
                 arguments "APP_SHORT_COMMANDS=true"
             }
+        }
+        ndk {
+            abiFilters 'arm64-v8a'
         }
     }
 
@@ -143,14 +98,24 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             signingConfig signingConfigs.customRelease
-            // defaultConfig already set
-            // multiDexEnabled = true
-            // debuggable = true
             resValue "string", "app_name", "Amethyst"
             resValue "string", "app_short_name", "Amethyst"
             resValue 'string', 'storageProviderAuthorities', 'org.angelauramc.amethyst.scoped.gamefolder'
             resValue 'string', 'application_package', 'org.angelauramc.amethyst'
         }
+
+        offlineRelease {
+            initWith release
+            matchingFallbacks = ['release']
+            debuggable false
+            // Continue updating the existing Offline Turnip installation and its app data.
+            applicationIdSuffix '.debug'
+            signingConfig signingConfigs.customDebug
+            resValue 'string', 'application_package', 'org.angelauramc.amethyst.debug'
+            resValue 'string', 'storageProviderAuthorities', 'org.angelauramc.amethyst.scoped.gamefolder.debug'
+            resValue 'string', 'shareProviderAuthority', 'org.angelauramc.amethyst.scoped.controlfolder.debug'
+        }
+
         gplay {
             initWith release
             signingConfig signingConfigs.googlePlayBuild
@@ -197,8 +162,14 @@ android {
 
 afterEvaluate {
     // Explicit dependencies for which the apk relies on
-    tasks.mergeDebugAssets.dependsOn(":forge_installer:jar", ":arc_dns_injector:jar", ":methods_injector_agent:jar", ":jre_lwjgl3glfw:jar")
-    tasks.mergeReleaseAssets.dependsOn(":forge_installer:jar", ":arc_dns_injector:jar", ":methods_injector_agent:jar", ":jre_lwjgl3glfw:jar")
+    def componentJars = [":forge_installer:jar", ":arc_dns_injector:jar",
+                         ":methods_injector_agent:jar", ":jre_lwjgl3glfw:jar"]
+    tasks.withType(com.android.build.gradle.tasks.MergeSourceSetFolders).configureEach {
+        dependsOn(componentJars)
+    }
+    tasks.matching { it.name.toLowerCase().contains("lint") }.configureEach {
+        dependsOn(componentJars)
+    }
 }
 
 dependencies {

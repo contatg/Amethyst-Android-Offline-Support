@@ -86,6 +86,9 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
     /* View holding the surface, either a SurfaceView or a TextureView */
     View mSurface;
     Surface mNativeSurface;
+    private Object sizedSurface;
+    private int surfaceWidth;
+    private int surfaceHeight;
     String TAG = "MinecraftGLSurface";
 
     private final InGameEventProcessor mIngameProcessor = new InGameEventProcessor(mSensitivityFactor);
@@ -94,6 +97,10 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
     private AndroidPointerCapture mPointerCapture;
     private boolean mLastGrabState = false;
     public static boolean sdlEnabled = false;
+
+    public void setBedrockTouch(boolean enabled) {
+        mIngameProcessor.setCameraOnly(enabled);
+    }
     boolean useSurfaceView = LauncherPreferences.PREF_USE_ALTERNATE_SURFACE;
 
     public MinecraftGLSurface(Context context) {
@@ -132,9 +139,7 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
         if(Tools.isAndroid8OrHigher()) setUpPointerCapture(touchpad);
         mInGUIProcessor.setAbstractTouchpad(touchpad);
         // Kopper Zink has orientation issues on SurfaceView
-        try {
-            useSurfaceView = useSurfaceView && !LOCAL_RENDERER.equals("opengles3_desktopgl_zink_kopper");
-        } catch (NullPointerException ignored){}
+        useSurfaceView = useSurfaceView && !Tools.isKopperRenderer(LOCAL_RENDERER);
         if(useSurfaceView){
             SurfaceView surfaceView = new SurfaceView(getContext());
             mSurface = surfaceView;
@@ -145,6 +150,7 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
                 @Override
                 public void surfaceCreated(@NonNull SurfaceHolder holder) {
                     if(isCalled) {
+                        refreshSize(true);
                         JREUtils.setupBridgeWindow(mNativeSurface);
                         return;
                     }
@@ -184,6 +190,7 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
                     mNativeSurface = new Surface(surface);
                     setupSDL(getContext(), mNativeSurface, (ViewGroup) getParent());
                     if(isCalled) {
+                        refreshSize(true);
                         JREUtils.setupBridgeWindow(mNativeSurface);
                         return;
                     }
@@ -439,17 +446,15 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
             Log.w("MGLSurface", "Attempt to refresh size on null surface");
             return;
         }
-        if(useSurfaceView){
-            SurfaceView view = (SurfaceView) mSurface;
-            if(view.getHolder() != null){
-                view.getHolder().setFixedSize(windowWidth, windowHeight);
-            }
-        }else{
-            TextureView view = (TextureView)mSurface;
-            if(view.getSurfaceTexture() != null){
-                view.getSurfaceTexture().setDefaultBufferSize(windowWidth, windowHeight);
-            }
-        }
+        Object surface = useSurfaceView ? ((SurfaceView) mSurface).getHolder()
+                : ((TextureView) mSurface).getSurfaceTexture();
+        if (surface == null || (!immediate && sizedSurface == surface
+                && surfaceWidth == newWidth && surfaceHeight == newHeight)) return;
+        sizedSurface = surface;
+        surfaceWidth = newWidth;
+        surfaceHeight = newHeight;
+        if (useSurfaceView) ((SurfaceHolder) surface).setFixedSize(newWidth, newHeight);
+        else ((SurfaceTexture) surface).setDefaultBufferSize(newWidth, newHeight);
 
         CallbackBridge.sendUpdateWindowSize(windowWidth, windowHeight);
 
@@ -461,11 +466,16 @@ public class MinecraftGLSurface extends View implements GrabListener, DirectGame
         refreshSize(true);
         // Ensures we run at correct refresh rate (should also NOT change the resolution being used)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            float maxHz = 120f; // Set to 120 by default just to be safe
-            for (float altHz : getDisplay().getMode().getAlternativeRefreshRates()) {
-                maxHz = Math.max(maxHz, altHz);
+            android.view.Display display = getDisplay();
+            if (display != null) {
+                android.view.Display.Mode mode = display.getMode();
+                float maxHz = mode.getRefreshRate();
+                for (float altHz : mode.getAlternativeRefreshRates()) {
+                    maxHz = Math.max(maxHz, altHz);
+                }
+                surface.setFrameRate(maxHz, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT,
+                        Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
             }
-            surface.setFrameRate(maxHz, Surface.FRAME_RATE_COMPATIBILITY_DEFAULT, Surface.CHANGE_FRAME_RATE_ONLY_IF_SEAMLESS);
         }
 
         //Load Minecraft options:

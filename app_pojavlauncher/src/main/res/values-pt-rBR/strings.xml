@@ -48,6 +48,12 @@
     <string name="mcl_setting_title_javaargs">Argumentos JVM</string>
     <string name="mcl_setting_subtitle_javaargs">Cuidado, isto pode causar falhas no seu jogo caso modificado sem conhecimento.</string>
     <string name="mcl_setting_category_renderer">Renderizador</string>
+    <string name="global_renderer_auto">Automático</string>
+    <string name="preference_bedrock_touch_title">Controles de toque estilo Bedrock</string>
+    <string name="preference_bedrock_touch_summary">Joystick, mira por arrasto e botões de ação. Desative para usar seu layout personalizado.</string>
+    <string name="preference_adreno610_title">Aplicar ajustes de vídeo para Adreno 610</string>
+    <string name="preference_adreno610_summary">Mira 640 px, ativa SurfaceView e desativa o V-Sync forçado. Reinicie o jogo para aplicar.</string>
+    <string name="renderer_zink">Zink (Vulkan do sistema)</string>
     <string name="mcl_setting_renderer_vulkan_zink">Zink (Vulkan) - (todas as versões, mediano)</string>
     <string name="mcl_setting_renderer_ltw">LTW (OpenGL ES 3) - apenas 1.17+</string>
     <string name="mcl_setting_veroption_release">Versões finais</string>
@@ -230,8 +236,10 @@
     <string name="preference_wipe_controller_description">Permite você remapear os botões do controle.</string>
     <string name="preference_deadzone_scale_title">Escala de zona morta do controle de videogame</string>
     <string name="preference_deadzone_scale_description">Aumente isto se o joystick estiver com drift.</string>
-    <string name="preference_force_big_core_title">Forçar o renderizador a rodar no núcleo mais potente (Big Core)</string>
-    <string name="preference_force_big_core_desc">Força a renderização do Minecraft a rodar no núcleo com frequência mais alta.</string>
+    <string name="preference_force_big_core_title">Usar núcleos rápidos na renderização</string>
+    <string name="preference_force_big_core_desc">Restringe apenas a thread de renderização aos núcleos mais rápidos disponíveis, se o Android permitir.</string>
+    <string name="preference_legacy_render_hints_title">Ajuste de CPU para Minecraft 1.7.10</string>
+    <string name="preference_legacy_render_hints_description">Permite que o Android ajuste o agendamento da CPU com Holy GL4ES em aparelhos compatíveis.</string>
     <string name="version_select_hint">Selecione uma versão</string>
     <string name="forge_dl_progress">Baixando instalador %s</string>
     <string name="forge_dl_searching">Procurando pelo número da versão do Forge</string>

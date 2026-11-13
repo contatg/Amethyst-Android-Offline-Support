@@ -37,6 +37,21 @@ public class PointerTracker {
         return trackedPointerIndex;
     }
 
+    public void updatePointerAfterLift(MotionEvent event) {
+        int liftedIndex = event.getActionIndex();
+        int remainingIndex = liftedIndex == 0 ? 1 : 0;
+        if (event.getPointerId(liftedIndex) == mTrackedPointerId) {
+            mTrackedPointerId = event.getPointerId(remainingIndex);
+            mLastX = event.getX(remainingIndex);
+            mLastY = event.getY(remainingIndex);
+        }
+        mPointerCount = event.getPointerCount() - 1;
+    }
+
+    public void updatePointerCount(MotionEvent event) {
+        mPointerCount = event.getPointerCount();
+    }
+
     public float[] getMotionVector() {
         return mMotionVector;
     }

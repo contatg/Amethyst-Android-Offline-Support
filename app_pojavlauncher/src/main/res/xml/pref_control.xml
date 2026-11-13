@@ -4,6 +4,12 @@
 
     <net.kdt.pojavlaunch.prefs.BackButtonPreference/>
 
+    <androidx.preference.SwitchPreferenceCompat
+        android:key="bedrockTouch"
+        android:defaultValue="true"
+        android:title="@string/preference_bedrock_touch_title"
+        android:summary="@string/preference_bedrock_touch_summary" />
+
 
     <Preference
         android:title="@string/preference_edit_controls_title"

@@ -69,8 +69,16 @@ public class ControlLayout extends FrameLayout {
 
 
 	public void loadLayout(String jsonPath) throws IOException, JsonSyntaxException {
+		loadLayout(jsonPath, Float.POSITIVE_INFINITY);
+	}
+
+	public void loadLayout(String jsonPath, float maximumScale) throws IOException, JsonSyntaxException {
 		CustomControls layout = LayoutConverter.loadAndConvertIfNecessary(jsonPath);
 		if(layout != null) {
+			float requestedScale = LauncherPreferences.PREF_BUTTONSIZE / layout.scaledAt;
+			if (requestedScale > maximumScale) {
+				layout.scaledAt = LauncherPreferences.PREF_BUTTONSIZE / maximumScale;
+			}
 			loadLayout(layout);
 			updateLoadedFileName(jsonPath);
 			return;
@@ -95,7 +103,6 @@ public class ControlLayout extends FrameLayout {
 			mLayout = null;
 		}
 
-		System.gc();
 		mapTable.clear();
 
 		// Cleanup buttons only when input layout is null
@@ -220,13 +227,15 @@ public class ControlLayout extends FrameLayout {
 
 
 	private void removeAllButtons() {
+		releaseTouchInputs();
 		for(ControlInterface button : getButtonChildren()){
 			removeView(button.getControlView());
 		}
+		mButtons = null;
+	}
 
-		System.gc();
-		//i wanna be sure that all the removed Views will be removed after a reload
-		//because if frames will slowly go down after many control changes it will be warm and bad
+	public void releaseTouchInputs() {
+		for (ControlInterface button : getButtonChildren()) button.releaseTouchInputs();
 	}
 
 	public void saveLayout(String path) throws Exception {

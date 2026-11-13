@@ -161,7 +161,11 @@ public class GLInfoUtils {
          * @return
          */
         public boolean isAdreno() {
-            return renderer.contains("Adreno") && vendor.equals("Qualcomm");
+            return renderer != null && renderer.contains("Adreno");
+        }
+
+        public boolean isAdreno610() {
+            return isAdreno() && renderer.contains(" 610");
         }
     }
 }
