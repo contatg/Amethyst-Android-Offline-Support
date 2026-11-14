@@ -41,6 +41,16 @@ You can get Amethyst via two methods:
 1. **Releases:** Download the latest prebuilt app from [nightly.link](https://nightly.link/AngelAuraMC/Amethyst-Android/workflows/android/v3_openjdk/app-debug%20%28recommended%29.zip) or select an older version from our [automatic builds](https://github.com/AngelAuraMC/Amethyst-Android/actions).
 2. **Build from Source:** Follow the [building instructions](#building) below.
 
+## Pasta dos mods
+
+Ao abrir o Amethyst, conceda o acesso aos arquivos para usar
+`Armazenamento interno/Amethyst/`. Coloque os mods do perfil padrão em
+`Amethyst/mods/` e os mapas em `Amethyst/saves/`. Para modpacks com pasta
+própria, use o botão de pasta do perfil e crie ou abra a subpasta `mods`.
+Na primeira abertura, o app copia os arquivos do jogo da instalação
+anterior e preserva os originais. A pasta `.minecraft` dentro de `Amethyst`
+contém os arquivos que os instaladores Java esperam encontrar ali.
+
 ## Building
 
 Esta branch do fork é voltada para o Minecraft Java no Android ARM64. Inclui

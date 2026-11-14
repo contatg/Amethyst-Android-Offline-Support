@@ -190,6 +190,7 @@ public class LauncherActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        if (!Tools.checkStorageInteractive(this)) return;
         setContentView(R.layout.activity_pojav_launcher);
         FragmentManager fragmentManager = getSupportFragmentManager();
         // If we don't have a back stack root yet...
@@ -253,6 +254,7 @@ public class LauncherActivity extends BaseActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (isFinishing()) return;
         ContextExecutor.setActivity(this);
         mInstallTracker.attach();
     }
@@ -260,6 +262,7 @@ public class LauncherActivity extends BaseActivity {
     @Override
     protected void onPause() {
         super.onPause();
+        if (mInstallTracker == null) return;
         ContextExecutor.clearActivity();
         mInstallTracker.detach();
     }
@@ -267,12 +270,14 @@ public class LauncherActivity extends BaseActivity {
     @Override
     protected void onStart() {
         super.onStart();
+        if (isFinishing()) return;
         getSupportFragmentManager().registerFragmentLifecycleCallbacks(mFragmentCallbackListener, true);
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (mProgressLayout == null) return;
         mProgressLayout.cleanUpObservers();
         ProgressKeeper.removeTaskCountListener(mProgressLayout);
         ProgressKeeper.removeTaskCountListener(mProgressServiceKeeper);

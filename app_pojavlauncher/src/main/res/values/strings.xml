@@ -518,4 +518,8 @@
     <string name="error_key_unsupported">Error! The key assigned to this button is invalid. Did you try updating?</string>
     <string name="error_invalid_value">Error! Invalid value!</string>
 
+    <string name="shared_storage_permission_message">Allow file access so Amethyst can use the Amethyst folder in internal storage for mods and worlds.</string>
+    <string name="shared_storage_permission_action">Allow file access</string>
+    <string name="shared_storage_preparing">Preparing the Amethyst folder and copying existing game files…</string>
+    <string name="shared_storage_error">Could not prepare the Amethyst folder. %1$s</string>
 </resources>

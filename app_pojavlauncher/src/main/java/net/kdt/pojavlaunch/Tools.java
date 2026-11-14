@@ -132,8 +132,9 @@ public final class Tools {
 
     // New since 3.3.1
     public static String DIR_ACCOUNT_NEW;
-    public static String DIR_GAME_HOME = Environment.getExternalStorageDirectory().getAbsolutePath() + "/games/Amethyst";
-    public static String DIR_GAME_NEW;
+    public static final String DIR_GAME_HOME = new File(Environment.getExternalStorageDirectory(), "Amethyst").getAbsolutePath();
+    public static final String DIR_GAME_NEW = DIR_GAME_HOME;
+    public static final String DIR_GAME_INSTALL = DIR_GAME_HOME + "/.minecraft";
 
     // New since 3.0.0
     public static String DIRNAME_HOME_JRE = "lib";
@@ -154,34 +155,20 @@ public final class Tools {
     public static String lwjglNativesDir = null;
 
 
-    private static File getPojavStorageRoot(Context ctx) {
-        if(SDK_INT >= 29) {
-            return ctx.getExternalFilesDir(null);
-        }else{
-            return new File(Environment.getExternalStorageDirectory(),"games/Amethyst");
-        }
-    }
-
-    /**
-     * Checks if the Pojav's storage root is accessible and read-writable
-     * @param context context to get the storage root if it's not set yet
-     * @return true if storage is fine, false if storage is not accessible
-     */
     public static boolean checkStorageRoot(Context context) {
-        File externalFilesDir = DIR_GAME_HOME  == null ? Tools.getPojavStorageRoot(context) : new File(DIR_GAME_HOME);
-        //externalFilesDir == null when the storage is not mounted if it was obtained with the context call
-        return externalFilesDir != null && Environment.getExternalStorageState(externalFilesDir).equals(Environment.MEDIA_MOUNTED);
+        return TestStorageActivity.isStorageAllowed(context)
+                && Environment.MEDIA_MOUNTED.equals(Environment.getExternalStorageState());
     }
 
     /**
      * Checks if the Pojav's storage root is accessible and read-writable. If it's not, starts
-     * the MissingStorageActivity and finishes the supplied activity.
+     * the storage setup activity and finishes the supplied activity.
      * @param context the Activity that checks for storage availability
      * @return whether the storage is available or not.
      */
     public static boolean checkStorageInteractive(Activity context) {
-        if(!Tools.checkStorageRoot(context)) {
-            context.startActivity(new Intent(context, MissingStorageActivity.class));
+        if (!checkStorageRoot(context) || !SharedGameStorage.isPrepared(context)) {
+            context.startActivity(new Intent(context, TestStorageActivity.class));
             context.finish();
             return false;
         }
@@ -210,12 +197,11 @@ public final class Tools {
      */
     public static void initStorageConstants(Context ctx){
         initEarlyConstants(ctx);
-        DIR_GAME_HOME = getPojavStorageRoot(ctx).getAbsolutePath();
-        DIR_GAME_NEW = DIR_GAME_HOME + "/.minecraft";
-        DIR_HOME_VERSION = DIR_GAME_NEW + "/versions";
-        DIR_HOME_LIBRARY = DIR_GAME_NEW + "/libraries";
+        // Desktop installers still expect their install files under user.home/.minecraft.
+        DIR_HOME_VERSION = DIR_GAME_INSTALL + "/versions";
+        DIR_HOME_LIBRARY = DIR_GAME_INSTALL + "/libraries";
         DIR_HOME_CRASH = DIR_GAME_NEW + "/crash-reports";
-        ASSETS_PATH = DIR_GAME_NEW + "/assets";
+        ASSETS_PATH = DIR_GAME_INSTALL + "/assets";
         OBSOLETE_RESOURCES_PATH = DIR_GAME_NEW + "/resources";
         CTRLMAP_PATH = DIR_GAME_HOME + "/controlmap";
         CTRLDEF_FILE = DIR_GAME_HOME + "/controlmap/default.json";
@@ -637,13 +623,15 @@ public final class Tools {
     }
 
     public static File getGameDirPath(@NonNull MinecraftProfile minecraftProfile){
-        if(minecraftProfile.gameDir != null){
-            if(minecraftProfile.gameDir.startsWith(Tools.LAUNCHERPROFILES_RTPREFIX))
-                return new File(minecraftProfile.gameDir.replace(Tools.LAUNCHERPROFILES_RTPREFIX,Tools.DIR_GAME_HOME+"/"));
-            else
-                return new File(Tools.DIR_GAME_HOME,minecraftProfile.gameDir);
+        String path = minecraftProfile.gameDir;
+        if (path == null) return new File(DIR_GAME_NEW);
+        if (path.startsWith(LAUNCHERPROFILES_RTPREFIX)) {
+            path = path.substring(LAUNCHERPROFILES_RTPREFIX.length());
         }
-        return new File(Tools.DIR_GAME_NEW);
+        while (path.startsWith("./")) path = path.substring(2);
+        if (path.equals(".minecraft")) return new File(DIR_GAME_NEW);
+        if (path.startsWith(".minecraft/")) path = path.substring(".minecraft/".length());
+        return new File(DIR_GAME_HOME, path);
     }
 
     public static void buildNotificationChannel(Context context){
@@ -1802,14 +1790,6 @@ public final class Tools {
                         Log.w(Tools.APP_NAME, "Could not enable System.exit() method!", th);
                     }
                 }).show();
-    }
-
-    public static void switchDemo(boolean isDemo){
-        DIR_GAME_NEW = DIR_GAME_HOME + "/.minecraft";
-        DIR_HOME_VERSION = DIR_GAME_NEW + "/versions";
-        DIR_HOME_LIBRARY = DIR_GAME_NEW + "/libraries";
-        ASSETS_PATH = DIR_GAME_NEW + "/assets";
-        OBSOLETE_RESOURCES_PATH = DIR_GAME_NEW + "/resources";
     }
 
     private static NetworkInfo getActiveNetworkInfo(Context ctx) {

@@ -360,7 +360,6 @@ public class JREUtils {
 
         userArgs.addAll(JVMArgs);
         activity.runOnUiThread(() -> Toast.makeText(activity, activity.getString(R.string.autoram_info_msg,LauncherPreferences.PREF_RAM_ALLOCATION), Toast.LENGTH_SHORT).show());
-        System.out.println(JVMArgs);
 
         initJavaRuntime(runtimeHome);
         JREUtils.setupExitMethod(activity.getApplication());

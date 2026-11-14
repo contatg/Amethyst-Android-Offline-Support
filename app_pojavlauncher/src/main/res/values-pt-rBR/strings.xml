@@ -351,4 +351,8 @@
     <string name="local_login_bad_username_text">O nome de usuário deve ter entre 3 a 16 caracteres, deve conter somente letras latinas, número de 0 a 9 e sublinhados.</string>
     <string name="quick_setting_title">Configurações rápidas</string>
     <string name="preference_experimental_title">Opções experimentais</string>
+    <string name="shared_storage_permission_message">Permita o acesso aos arquivos para o Amethyst usar a pasta Amethyst do armazenamento interno para mods e mundos.</string>
+    <string name="shared_storage_permission_action">Permitir acesso aos arquivos</string>
+    <string name="shared_storage_preparing">Preparando a pasta Amethyst e copiando os arquivos do jogo…</string>
+    <string name="shared_storage_error">Não foi possível preparar a pasta Amethyst. %1$s</string>
 </resources>

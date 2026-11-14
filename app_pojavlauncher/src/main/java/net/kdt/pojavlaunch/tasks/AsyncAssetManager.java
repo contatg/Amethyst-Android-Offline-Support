@@ -74,12 +74,14 @@ public class AsyncAssetManager {
                     String assetSha1 = new String(org.apache.commons.codec.binary.Hex.encodeHex(org.apache.commons.codec.digest.DigestUtils.sha1(is)));
                     if (!Tools.compareSHA1(new File(Tools.CTRLDEF_FILE), assetSha1)) {
                         Tools.copyAssetFile(ctx, "default.json", Tools.CTRLMAP_PATH, "new_default.json" , false);
-                        // Be annoying and set their default to the new one heehee
-                        LauncherPreferences.DEFAULT_PREF.edit().putString("defaultCtrl", Tools.CTRLMAP_PATH+"/new_default.json").apply();
+                        if (Tools.CTRLDEF_FILE.equals(LauncherPreferences.PREF_DEFAULTCTRL_PATH)) {
+                            LauncherPreferences.DEFAULT_PREF.edit().putString("defaultCtrl",
+                                    Tools.CTRLMAP_PATH + "/new_default.json").apply();
+                        }
                     } else Tools.copyAssetFile(ctx, "default.json", Tools.CTRLMAP_PATH, false);
                 }
 
-                Tools.copyAssetFile(ctx, "launcher_profiles.json", Tools.DIR_GAME_NEW, false);
+                Tools.copyAssetFile(ctx, "launcher_profiles.json", Tools.DIR_GAME_INSTALL, false);
                 Tools.copyAssetFile(ctx,"resolv.conf",Tools.DIR_DATA, false);
             } catch (IOException e) {
                 Log.e("AsyncAssetManager", "Failed to unpack critical components !");
